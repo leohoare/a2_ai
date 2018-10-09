@@ -110,6 +110,7 @@ for episode in range(EPISODE):
         # hint1: Bellman
         # hint2: consider if the episode has terminated
         # target =
+        # 
 	# NEED TO DEFINE TARGET
         # Do one training step
         session.run([optimizer], feed_dict={
