@@ -12,10 +12,11 @@ TEST = 10  # The number of tests to run every TEST_FREQUENCY episodes
 TEST_FREQUENCY = 100  # Num episodes to run before visualizing test accuracy
 
 # TODO: HyperParameters
-GAMMA =  # discount factor
-INITIAL_EPSILON =  # starting value of epsilon
-FINAL_EPSILON =  # final value of epsilon
-EPSILON_DECAY_STEPS =  # decay period
+GAMMA = 0.9  # discount factor
+INITIAL_EPSILON = 0.1  # starting value of epsilon
+FINAL_EPSILON = 0.01  # final value of epsilon
+EPSILON_DECAY_STEPS = 100  # decay period
+LEARNING_RATE = 0.01 #learning reate
 
 # Create environment
 # -- DO NOT MODIFY --
@@ -31,15 +32,35 @@ action_in = tf.placeholder("float", [None, ACTION_DIM])
 target_in = tf.placeholder("float", [None])
 
 # TODO: Define Network Graph
+def network(state_in, state_dim, hidden_nodes = [50,50], action_dim):
+	w1 = tf.get_variable("W1", shape=[state_dim, hidden_nodes[0]])
+	b1 = tf.get_variable("b1", shape=[1, hidden_nodes[0]], initalizer = tf.constant_intializer(0.0)) 
 
+	w2 = tf.get_variable("W2", shape=[hidden_nodes[0], hidden_nodes[1]])
+	b2 = tf.get_variable("b2", shape=[1, hidden_nodes[1]], initalizer = tf.constant_intializer(0.0)) 
+
+	w3 = tf.get_variable("W3", shape=[hidden_nodes[1], action_dim])
+	b3 = tf.get_variable("b1", shape=[1, action_dim], initalizer = tf.constant_intializer(0.0)) 
+
+	l1_logits = tf.matmul(state_in, W1) + b1
+	l1_out = tf.tanh(l1_logits)
+	# option for tf.sigmoid
+	
+	l2_logits = tf.matmul(l1_logits, W2) + b2
+	l2_out = tf.tanh(l2_logits)
+
+	l3_logits = tf.matmul(l2_logits, W3) + b3
+	l3_out = tf.tanh(l3_logits)
+	
+	return l3_out
 
 # TODO: Network outputs
-q_values =
-q_action =
+q_values = network(state_in, STATE_DIM, [50,50], ACTION_DIM)
+q_action = tf.reduce_sum(tf.multiply(q_values, action_in), reduction_indices=1)
 
 # TODO: Loss/Optimizer Definition
-loss =
-optimizer =
+loss = tf.reduce_mean(tf.square(target_in - q_action)
+optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
 
 # Start session - Tensorflow housekeeping
 session = tf.InteractiveSession()
