@@ -104,14 +104,16 @@ for episode in range(EPISODE):
             state_in: [next_state]
         })
 
-	
-	
         # TODO: Calculate the target q-value.
         # hint1: Bellman
         # hint2: consider if the episode has terminated
-        # target =
-        # 
-	# NEED TO DEFINE TARGET
+        state_q_values = q_values.eval(feed_dict={
+            state_in: [state]
+        })
+
+        target = np.square(
+            reward + GAMMA * np.max(nextstate_q_values) - state_q_values[0][np.argmax(action)])
+
         # Do one training step
         session.run([optimizer], feed_dict={
             target_in: [target],
