@@ -32,34 +32,34 @@ action_in = tf.placeholder("float", [None, ACTION_DIM])
 target_in = tf.placeholder("float", [None])
 
 # TODO: Define Network Graph
-def network(state_in, state_dim, hidden_nodes = [50,50], action_dim):
-	w1 = tf.get_variable("W1", shape=[state_dim, hidden_nodes[0]])
-	b1 = tf.get_variable("b1", shape=[1, hidden_nodes[0]], initalizer = tf.constant_intializer(0.0)) 
+def network(state_in, state_dim, action_dim, hidden_nodes = [50,50]):
+	w1 = tf.get_variable("w1", shape=[state_dim, hidden_nodes[0]])
+	b1 = tf.get_variable("b1", shape=[1, hidden_nodes[0]], initializer = tf.constant_initializer(0.0)) 
 
-	w2 = tf.get_variable("W2", shape=[hidden_nodes[0], hidden_nodes[1]])
-	b2 = tf.get_variable("b2", shape=[1, hidden_nodes[1]], initalizer = tf.constant_intializer(0.0)) 
+	w2 = tf.get_variable("w2", shape=[hidden_nodes[0], hidden_nodes[1]])
+	b2 = tf.get_variable("b2", shape=[1, hidden_nodes[1]], initializer = tf.constant_initializer(0.0)) 
 
-	w3 = tf.get_variable("W3", shape=[hidden_nodes[1], action_dim])
-	b3 = tf.get_variable("b1", shape=[1, action_dim], initalizer = tf.constant_intializer(0.0)) 
+	w3 = tf.get_variable("w3", shape=[hidden_nodes[1], action_dim])
+	b3 = tf.get_variable("b3", shape=[1, action_dim], initializer = tf.constant_initializer(0.0)) 
 
-	l1_logits = tf.matmul(state_in, W1) + b1
+	l1_logits = tf.matmul(state_in, w1) + b1
 	l1_out = tf.tanh(l1_logits)
 	# option for tf.sigmoid
 	
-	l2_logits = tf.matmul(l1_logits, W2) + b2
+	l2_logits = tf.matmul(l1_logits, w2) + b2
 	l2_out = tf.tanh(l2_logits)
 
-	l3_logits = tf.matmul(l2_logits, W3) + b3
+	l3_logits = tf.matmul(l2_logits, w3) + b3
 	l3_out = tf.tanh(l3_logits)
 	
 	return l3_out
 
 # TODO: Network outputs
-q_values = network(state_in, STATE_DIM, [50,50], ACTION_DIM)
+q_values = network(state_in, STATE_DIM, ACTION_DIM, [50,50])
 q_action = tf.reduce_sum(tf.multiply(q_values, action_in), reduction_indices=1)
 
 # TODO: Loss/Optimizer Definition
-loss = tf.reduce_mean(tf.square(target_in - q_action)
+loss = tf.reduce_mean(tf.square(target_in - q_action))
 optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
 
 # Start session - Tensorflow housekeeping
@@ -104,11 +104,13 @@ for episode in range(EPISODE):
             state_in: [next_state]
         })
 
+	
+	
         # TODO: Calculate the target q-value.
         # hint1: Bellman
         # hint2: consider if the episode has terminated
-        target =
-
+        # target =
+	# NEED TO DEFINE TARGET
         # Do one training step
         session.run([optimizer], feed_dict={
             target_in: [target],
