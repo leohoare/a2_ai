@@ -2,6 +2,7 @@ import gym
 import tensorflow as tf
 import numpy as np
 import random
+from collections import deque
 
 # General Parameters
 # -- DO NOT MODIFY --
@@ -13,10 +14,14 @@ TEST_FREQUENCY = 100  # Num episodes to run before visualizing test accuracy
 
 # TODO: HyperParameters
 GAMMA = 0.9  # discount factor
-INITIAL_EPSILON = 0.1  # starting value of epsilon
+INITIAL_EPSILON = 0.6  # starting value of epsilon
 FINAL_EPSILON = 0.01  # final value of epsilon
 EPSILON_DECAY_STEPS = 100  # decay period
-LEARNING_RATE = 0.01 #learning reate
+LEARNING_RATE = 0.005 #learning reate
+
+BATCH_SIZE = 16
+MAX_SIZE_BUFFER = 10000
+buffer = []
 
 # Create environment
 # -- DO NOT MODIFY --
@@ -94,29 +99,47 @@ for episode in range(EPISODE):
 	epsilon -= epsilon / EPSILON_DECAY_STEPS
 	# Move through env according to e-greedy policy
 
-
 	for step in range(STEP):
 		action = explore(state, epsilon)
 		next_state, reward, done, _ = env.step(np.argmax(action))
-		#print(next_state.shape[0])
-		# next_state = next_state.reshape([1,next_state.shape[0]])
-		nextstate_q_values = q_values.eval(feed_dict={
-			state_in: [next_state]
-		})
 
-		#print(f" reward = {reward} next_state_q = {nextstate_q_values}")
-		target = reward + GAMMA * nextstate_q_values[0]
-		##### comment out when submitting #####
-		#env.render()
-		#######################################
-		# TODO: Calculate the target q-value.
+		# place step into buffer
+		buffer.append([state,action,next_state,reward,done])
+		# if buffer is too long remove inital values
+		if len(buffer) > MAX_SIZE_BUFFER:
+			buffer.pop(0)
+
+		# find batch size to set (to account for random.sample)
+		if len(buffer) < BATCH_SIZE:
+			actual_BATCH_SIZE = len(buffer)
+		else:
+			actual_BATCH_SIZE = BATCH_SIZE
+
+		# collection a random subset of batches
+		batchs = random.sample(buffer,actual_BATCH_SIZE)
+
+		# create states, action and target for batch
+		batch_state = []
+		batch_action = []
+		batch_target = []
+		for batch in batchs:
+			# append state
+			batch_state.append(batch[0])
+			# append action
+			batch_action.append(batch[1])
+			# find q value of next_state
+			batch_next_q = q_values.eval(feed_dict={ state_in: [batch[2]] } )
+			# if batch is done
+			if batch[4]:
+				batch_target.append(batch[3])
+			else:
+				batch_target.append(batch[3] + GAMMA * np.max(batch_next_q))
+
 		# hint1: Bellman
 		# hint2: consider if the episode has terminated
-		# target =
-		# NEED TO DEFINE TARGET
 		# Do one training step
-		session.run([optimizer], feed_dict={ state_in: [state],
-			target_in: target, action_in: [action]
+		session.run([optimizer], feed_dict={ state_in: batch_state,
+			target_in: batch_target, action_in: batch_action
 		})
 		# Update
 		state = next_state
@@ -140,6 +163,6 @@ for episode in range(EPISODE):
 					break
 				ave_reward = total_reward / TEST
 				print('episode:', episode, 'epsilon:', epsilon, 'Evaluation '
-                                                        'Average Reward:', ave_reward)
+                                                        'Average Reward:', ave_reward, total_reward)
 
 env.close()
