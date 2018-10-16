@@ -12,16 +12,16 @@ STEP = 200  # Step limitation in an episode
 TEST = 10  # The number of tests to run every TEST_FREQUENCY episodes
 TEST_FREQUENCY = 100  # Num episodes to run before visualizing test accuracy
 
-# TODO: HyperParameters
-GAMMA = 0.9  # discount factor
-INITIAL_EPSILON = 0.6  # starting value of epsilon
-FINAL_EPSILON = 0.01  # final value of epsilon
-EPSILON_DECAY_STEPS = 100  # decay period
-LEARNING_RATE = 0.005 #learning reate
+# HyperParameters
+GAMMA = 0.9  # Discount factor
+INITIAL_EPSILON = 1.0  # Starting value of epsilon
+FINAL_EPSILON = 0.01  # Final value of epsilon
+EPSILON_DECAY_STEPS = 100  # Decay period
+LEARNING_RATE = 0.001  # Learning reate
+PUNISH = -10  # Amount to negatively reward actions that cause termination
 
-BATCH_SIZE = 16
-MAX_SIZE_BUFFER = 10000
-buffer = []
+BATCH_SIZE = 32  # Size of each batch
+MAX_SIZE_MEMORY = 10000  # Max number of experiences stored in memory
 
 # Create environment
 # -- DO NOT MODIFY --
@@ -36,33 +36,42 @@ state_in = tf.placeholder("float", [None, STATE_DIM])
 action_in = tf.placeholder("float", [None, ACTION_DIM])
 target_in = tf.placeholder("float", [None])
 
-# TODO: Define Network Graph
-def network(state_dim, action_dim, hidden_nodes = [50,50]):
-	w1 = tf.get_variable("w1", shape=[state_dim, hidden_nodes[0]])
-	b1 = tf.get_variable("b1", shape=[1, hidden_nodes[0]], initializer = tf.constant_initializer(0.0))
 
-	w2 = tf.get_variable("w2", shape=[hidden_nodes[0], hidden_nodes[1]])
-	b2 = tf.get_variable("b2", shape=[1, hidden_nodes[1]], initializer = tf.constant_initializer(0.0))
+# Network
+def network(state_dim, action_dim, hidden_nodes):
+    w1 = tf.get_variable(
+        "w1", shape=[state_dim, hidden_nodes[0]])
+    b1 = tf.get_variable(
+        "b1", shape=[1, hidden_nodes[0]],
+        initializer=tf.zeros_initializer)
 
-	w3 = tf.get_variable("w3", shape=[hidden_nodes[1], action_dim])
-	b3 = tf.get_variable("b3", shape=[1, action_dim], initializer = tf.constant_initializer(0.0))
+    w2 = tf.get_variable(
+        "w2", shape=[hidden_nodes[0], hidden_nodes[1]])
+    b2 = tf.get_variable(
+        "b2", shape=[1, hidden_nodes[1]],
+        initializer=tf.zeros_initializer)
 
-	l1_logits = tf.matmul(state_in, w1) + b1
-	l1_out = tf.tanh(l1_logits)
+    w3 = tf.get_variable("w3", shape=[hidden_nodes[1], action_dim])
+    b3 = tf.get_variable(
+        "b3", shape=[1, action_dim], initializer=tf.zeros_initializer)
 
-	l2_logits = tf.matmul(l1_logits, w2) + b2
-	l2_out = tf.tanh(l2_logits)
+    l1_logits = tf.matmul(state_in, w1) + b1
+    l1_out = tf.nn.relu(l1_logits)
 
-	l3_logits = tf.matmul(l2_logits, w3) + b3
-	l3_out = tf.tanh(l3_logits)
+    l2_logits = tf.matmul(l1_out, w2) + b2
+    l2_out = tf.nn.relu(l2_logits)
 
-	return l3_out
+    l3_logits = tf.matmul(l2_out, w3) + b3
+    l3_out = l3_logits
 
-# TODO: Network outputs
-q_values = network(STATE_DIM, ACTION_DIM, [50,50])
+    return l3_out
+
+
+# Network outputs
+q_values = network(STATE_DIM, ACTION_DIM, [30, 30])
 q_action = tf.reduce_sum(tf.multiply(q_values, action_in), reduction_indices=1)
 
-# TODO: Loss/Optimizer Definition
+# Loss/Optimizer Definition
 loss = tf.reduce_mean(tf.square(target_in - q_action))
 optimizer = tf.train.AdamOptimizer(LEARNING_RATE).minimize(loss)
 
@@ -89,80 +98,83 @@ def explore(state, epsilon):
     one_hot_action[action] = 1
     return one_hot_action
 
+# Memory to store experiences
+memory = deque()
 
 # Main learning loop
 for episode in range(EPISODE):
-
-	# initialize task
-	state = env.reset()
+    # Initialize task
+    state = env.reset()
     # Update epsilon once per episode
-	epsilon -= epsilon / EPSILON_DECAY_STEPS
-	# Move through env according to e-greedy policy
+    if epsilon > FINAL_EPSILON:
+        epsilon -= epsilon / EPSILON_DECAY_STEPS
+    else:
+        epsilon = FINAL_EPSILON
 
-	for step in range(STEP):
-		action = explore(state, epsilon)
-		next_state, reward, done, _ = env.step(np.argmax(action))
+    # Move through env according to e-greedy policy
+    for step in range(STEP):
+        action = explore(state, epsilon)
+        next_state, reward, done, _ = env.step(np.argmax(action))
 
-		# place step into buffer
-		buffer.append([state,action,next_state,reward,done])
-		# if buffer is too long remove inital values
-		if len(buffer) > MAX_SIZE_BUFFER:
-			buffer.pop(0)
+        # If memory is full, remove the oldest experience
+        if len(memory) > MAX_SIZE_MEMORY:
+            memory.popleft()
 
-		# find batch size to set (to account for random.sample)
-		if len(buffer) < BATCH_SIZE:
-			actual_BATCH_SIZE = len(buffer)
-		else:
-			actual_BATCH_SIZE = BATCH_SIZE
+        # Place step into memory
+        memory.append([state, action, next_state, reward, done])
 
-		# collection a random subset of batches
-		batchs = random.sample(buffer,actual_BATCH_SIZE)
+        # Create a batch once we have enough experiences
+        if len(memory) >= BATCH_SIZE * 2:
+            # Randomly sample a batch of experiences
+            batches = random.sample(memory, BATCH_SIZE)
 
-		# create states, action and target for batch
-		batch_state = []
-		batch_action = []
-		batch_target = []
-		for batch in batchs:
-			# append state
-			batch_state.append(batch[0])
-			# append action
-			batch_action.append(batch[1])
-			# find q value of next_state
-			batch_next_q = q_values.eval(feed_dict={ state_in: [batch[2]] } )
-			# if batch is done
-			if batch[4]:
-				batch_target.append(batch[3])
-			else:
-				batch_target.append(batch[3] + GAMMA * np.max(batch_next_q))
+            # Create the states, actions and targets for each batch
+            batch_state = []
+            batch_action = []
+            batch_target = []
+            for s, a, ns, r, d in batches:
+                batch_state.append(s)
+                batch_action.append(a)
+                batch_next_q = q_values.eval(feed_dict={
+                    state_in: [ns]
+                })
+                # Calculate targets
+                if d:
+                    # Punish actions that cause termination
+                    batch_target.append(PUNISH)
+                else:
+                    batch_target.append(
+                        r + GAMMA * np.max(batch_next_q))
 
-		# hint1: Bellman
-		# hint2: consider if the episode has terminated
-		# Do one training step
-		session.run([optimizer], feed_dict={ state_in: batch_state,
-			target_in: batch_target, action_in: batch_action
-		})
-		# Update
-		state = next_state
-		if done:
-			break
+            # Do one training step
+            session.run([optimizer], feed_dict={
+                state_in: batch_state,
+                target_in: batch_target,
+                action_in: batch_action
+            })
+
+        # Update
+        state = next_state
+        if done:
+            break
 
     # Test and view sample runs - can disable render to save time
     # -- DO NOT MODIFY --
-	if (episode % TEST_FREQUENCY == 0 and episode != 0):
-		total_reward = 0
-		for i in range(TEST):
-			state = env.reset()
-			for j in range(STEP):
-				env.render()
-				action = np.argmax(q_values.eval(feed_dict={
-					state_in: [state]
-				}))
-				state, reward, done, _ = env.step(action)
-				total_reward += reward
-				if done:
-					break
-				ave_reward = total_reward / TEST
-				print('episode:', episode, 'epsilon:', epsilon, 'Evaluation '
-                                                        'Average Reward:', ave_reward, total_reward)
+    if (episode % TEST_FREQUENCY == 0 and episode != 0):
+        total_reward = 0
+        for i in range(TEST):
+            state = env.reset()
+            for j in range(STEP):
+                env.render()
+                action = np.argmax(q_values.eval(feed_dict={
+                    state_in: [state]
+                }))
+                state, reward, done, _ = env.step(action)
+                total_reward += reward
+                if done:
+                    break
+                ave_reward = total_reward / TEST
+                print('episode:', episode, 'epsilon:', epsilon, 'Evaluation '
+                      'Average Reward:', ave_reward)
 
 env.close()
