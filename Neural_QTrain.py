@@ -124,7 +124,7 @@ for episode in range(EPISODE):
         memory.append([state, action, next_state, reward, done])
 
         # Create a batch once we have enough experiences
-        if len(memory) >= BATCH_SIZE * 2:
+        if len(memory) >= BATCH_SIZE:
             # Randomly sample a batch of experiences
             batches = random.sample(memory, BATCH_SIZE)
 
